@@ -33,7 +33,18 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define NUM_SAMPLES 440
+#define AUDIO_BUFFER_SIZE 256
+#define TABLE_SIZE 16384
+#define HALF_BUFFER 128
+#define FREQUENCY 220
+#define SAMPLE_RATE 48000.0f
+#define AMPLITUDE 0.4f
+#define TWO_PI 6.283185f
+
+
+//#define PHASE_INCREMENT TWO_PI * FREQUENCY / SAMPLE_RATE
+//#define TREM_FREQ 3.0f
+//#define TREMOLO_INCREMENT TWO_PI * TREM_FREQ / SAMPLE_RATE
 
 /* USER CODE END PD */
 
@@ -47,6 +58,8 @@ I2S_HandleTypeDef hi2s3;
 DMA_HandleTypeDef hdma_spi3_tx;
 
 /* USER CODE BEGIN PV */
+uint32_t i2s_tx_buffer[AUDIO_BUFFER_SIZE];
+int16_t sine_table[TABLE_SIZE];
 
 /* USER CODE END PV */
 
@@ -56,7 +69,8 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_I2S3_Init(void);
 /* USER CODE BEGIN PFP */
-void generate_sine_wave(int16_t*);
+void fill_audio_buffer(uint32_t*, int16_t*, uint8_t);
+void init_sine_table(int16_t*, size_t);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -72,8 +86,6 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-    int16_t sine_table[NUM_SAMPLES];
-    uint32_t i2s_tx_buffer[NUM_SAMPLES];
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -82,12 +94,7 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-    generate_sine_wave(sine_table);
-
-    for (int i = 0; i < NUM_SAMPLES; i++)
-    {
-    	i2s_tx_buffer[i] = (uint16_t)sine_table[i];  // 16-bit values left-justified in 32-bit frame
-    }
+  init_sine_table(sine_table, TABLE_SIZE);
 
   /* USER CODE END Init */
 
@@ -103,7 +110,7 @@ int main(void)
   MX_DMA_Init();
   MX_I2S3_Init();
   /* USER CODE BEGIN 2 */
-  HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)i2s_tx_buffer, NUM_SAMPLES);
+  HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)i2s_tx_buffer, AUDIO_BUFFER_SIZE);
 
   /* USER CODE END 2 */
 
@@ -237,13 +244,64 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void generate_sine_wave(int16_t* arr)
+void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef *hi2s)
 {
-	for (int i = 0; i < NUM_SAMPLES; i++)
+	// Called when DMA has sent the last element of the buffer
+	// at this point we want to re-fill the second half of the audio buffer
+	fill_audio_buffer(i2s_tx_buffer, sine_table, 0);
+}
+
+void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef *hi2s)
+{
+	// Called when DMA has sent the last element of the first half of the audio buffer
+	// at this point we want to re-fill the first half of the audio buffer
+	fill_audio_buffer(i2s_tx_buffer, sine_table, 1);
+}
+
+void init_sine_table(int16_t *table, size_t length)
+{
+	// this expression sets the frequency so that the generated sine wave
+	// will fill the sine wave table with a single full cycle
+	float frequency = 2 * SAMPLE_RATE / TABLE_SIZE;
+
+	const float PHASE_INCREMENT = TWO_PI * frequency / SAMPLE_RATE;
+	float phase = 0.0f;
+
+	for (size_t i = 0; i < length; i += 2)
 	{
-		float theta = 2.0f * M_PI * i / NUM_SAMPLES;
-		float value = sinf(theta);
-		arr[i] = (int16_t)(value * 32767);
+		float sample_f = sinf(phase) * AMPLITUDE;
+		int16_t sample_i16 = (int16_t)(sample_f * 32767.0f);
+		table[i] = sample_i16;       // Left stereo sample
+		table[i + 1] = sample_i16;   // Right stereo sample
+		phase += PHASE_INCREMENT;
+	}
+}
+
+void fill_audio_buffer(uint32_t *buf, int16_t *table, uint8_t is_half)
+{
+	/*
+	 * is_half is a boolean set to true if the DMA is at the half way point, false otherwise
+	 */
+
+	static uint16_t table_index = 0;
+	uint16_t phase_increment = (uint16_t)FREQUENCY*TABLE_SIZE/SAMPLE_RATE;
+
+	if (is_half)
+	{
+		for (size_t i = 0; i < HALF_BUFFER; i += 2)
+		{
+			buf[i] = (uint16_t)table[table_index];   // Left stereo sample
+			buf[i + 1] = (uint16_t)table[table_index];   // Right stereo sample
+			table_index = (table_index + phase_increment) % TABLE_SIZE;
+		}
+	} else
+	{
+		for (size_t i = HALF_BUFFER; i < AUDIO_BUFFER_SIZE; i += 2)
+		{
+			buf[i] = (uint16_t)table[table_index];   // Left stereo sample
+			buf[i + 1] = (uint16_t)table[table_index];   // Right stereo sample
+			table_index = (table_index + phase_increment) % TABLE_SIZE;
+		}
 	}
 }
 
