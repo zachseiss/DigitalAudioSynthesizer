@@ -37,11 +37,8 @@
 #define HALF_BUFFER 16
 #define TABLE_SIZE 1024
 #define LFO_TABLE_SIZE 128
-#define LFO_FREQUENCY 4.0f
-#define FREQUENCY 200.0f
 #define FREQUENCY_CORRECTION 1.01
 #define SAMPLE_RATE 48000.0f
-#define AMPLITUDE 0.8f
 #define TWO_PI 6.283185f
 
 /* USER CODE END PD */
@@ -55,7 +52,6 @@
 I2S_HandleTypeDef hi2s3;
 DMA_HandleTypeDef hdma_spi3_tx;
 
-UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
@@ -65,12 +61,14 @@ float lfo_table[LFO_TABLE_SIZE];
 
 // LFO state
 float lfo_phase = 0.0f;
-float lfo_phase_increment = TWO_PI * LFO_FREQUENCY * LFO_TABLE_SIZE / SAMPLE_RATE;
+float frequency = 0.0f;
+float amplitude = 0.8f;
+float lfo_frequency = 0.0f;
 uint8_t lfo_active = 1;
-float lfo_depth = 200.0f;
+float lfo_depth = 3.0f;
 
 // UART receive
-char rx_byte;
+uint8_t rx_byte;
 
 /* USER CODE END PV */
 
@@ -80,13 +78,13 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_I2S3_Init(void);
 static void MX_USART2_UART_Init(void);
-static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
 void fill_audio_buffer(uint32_t*, int16_t*, uint8_t);
 void init_sine_table(int16_t*, size_t);
 void init_lfo_table(float*, size_t);
 float get_lfo_value();
-void uart_forward_loop(void);
+void process_midi_bytes(void);
+void start_midi_reception(void);
 
 /* USER CODE END PFP */
 
@@ -128,10 +126,11 @@ int main(void)
   MX_DMA_Init();
   MX_I2S3_Init();
   MX_USART2_UART_Init();
-  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
   HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)i2s_tx_buffer, AUDIO_BUFFER_SIZE);
-  HAL_UART_Receive_IT(&huart2, (uint8_t*)&rx_byte, 1);
+  start_midi_reception();
+  HAL_UART_Transmit_IT(&huart2, (uint8_t*)&rx_byte, 1);
+
 
   /* USER CODE END 2 */
 
@@ -229,39 +228,6 @@ static void MX_I2S3_Init(void)
 }
 
 /**
-  * @brief USART1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_USART1_UART_Init(void)
-{
-
-  /* USER CODE BEGIN USART1_Init 0 */
-
-  /* USER CODE END USART1_Init 0 */
-
-  /* USER CODE BEGIN USART1_Init 1 */
-
-  /* USER CODE END USART1_Init 1 */
-  huart1.Instance = USART1;
-  huart1.Init.BaudRate = 31250;
-  huart1.Init.WordLength = UART_WORDLENGTH_8B;
-  huart1.Init.StopBits = UART_STOPBITS_1;
-  huart1.Init.Parity = UART_PARITY_NONE;
-  huart1.Init.Mode = UART_MODE_TX_RX;
-  huart1.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart1.Init.OverSampling = UART_OVERSAMPLING_16;
-  if (HAL_UART_Init(&huart1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN USART1_Init 2 */
-
-  /* USER CODE END USART1_Init 2 */
-
-}
-
-/**
   * @brief USART2 Initialization Function
   * @param None
   * @retval None
@@ -347,9 +313,71 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 	if (huart -> Instance == USART2)
 	{
-		HAL_UART_Transmit(&huart2, (uint8_t*)&rx_byte, 1, HAL_MAX_DELAY);
-		HAL_UART_Receive_IT(&huart2, (uint8_t*)&rx_byte, 1);
+		process_midi_bytes();
+		start_midi_reception();
 	}
+}
+
+void process_midi_bytes(void)
+{
+
+	static uint8_t status_byte = 0;
+	static uint8_t data_byte1 = 0;
+	static uint8_t data_byte2 = 0;
+
+	if (rx_byte == 0xf8) return;
+
+	if (!status_byte)
+	{
+		status_byte = rx_byte;
+		return;
+	}
+
+	else if (!data_byte1)
+	{
+		data_byte1 = rx_byte;
+		return;
+	}
+
+	else
+	{
+		data_byte2 = rx_byte;
+
+		if (data_byte2 == 0)
+		{
+			status_byte = 0;
+			data_byte1 = 0;
+			data_byte2 = 0;
+			return;
+		}
+
+		if (status_byte == 0x90)
+		{
+			frequency = 440.0f * pow(2.0f, (data_byte1-69.0f)/12.0f);
+			amplitude = data_byte2 / 100.0f;
+		}
+
+		else if (status_byte == 0xb0 && data_byte1 == 0x15)
+		{
+			lfo_frequency = (float)data_byte2;
+		}
+
+		else if (status_byte == 0xb0 && data_byte1 == 0x16)
+		{
+			lfo_depth = (float)data_byte2;
+		}
+
+		status_byte = 0;
+		data_byte1 = 0;
+		data_byte2 = 0;
+	}
+
+
+}
+
+void start_midi_reception(void)
+{
+	HAL_UART_Receive_IT(&huart2, (uint8_t*)&rx_byte, 1);
 }
 
 void init_sine_table(int16_t *table, size_t length)
@@ -363,7 +391,7 @@ void init_sine_table(int16_t *table, size_t length)
 
 	for (size_t i = 0; i < length; i += 1)
 	{
-		float sample_f = sinf(phase) * AMPLITUDE;
+		float sample_f = sinf(phase);
 		int16_t sample_i16 = (int16_t)(sample_f * 32767.0f);
 		table[i] = sample_i16;
 		phase += PHASE_INCREMENT;
@@ -387,12 +415,12 @@ void fill_audio_buffer(uint32_t *buf, int16_t *table, uint8_t is_half)
 	static float idx_f = 0.0f;
 
 	// calculate phase increment
-	static float base_phase_increment = FREQUENCY * FREQUENCY_CORRECTION * TABLE_SIZE / (SAMPLE_RATE);
+	float base_phase_increment = frequency * FREQUENCY_CORRECTION * TABLE_SIZE / (SAMPLE_RATE);
 	float phase_increment = base_phase_increment;
 
 	if (lfo_active)
 	{
-		float modulated_frequency = FREQUENCY + (get_lfo_value() * lfo_depth);
+		float modulated_frequency = frequency + (get_lfo_value() * lfo_depth);
 		phase_increment = 0.5f * (base_phase_increment + modulated_frequency * TABLE_SIZE / SAMPLE_RATE);
 	}
 
@@ -408,7 +436,7 @@ void fill_audio_buffer(uint32_t *buf, int16_t *table, uint8_t is_half)
 		float frac = idx_f - idx_u16;
 		int16_t a = table[idx_u16];
 		int16_t b = table[(idx_u16 + 1) % TABLE_SIZE];
-		int16_t sample = (1.0f - frac) * a + frac * b;
+		int16_t sample = amplitude * ((1.0f - frac) * a + frac * b);
 
 		buf[i] = (uint16_t)sample;                             // Left stereo sample
 		buf[(i + 1) % AUDIO_BUFFER_SIZE] = (uint16_t)sample;   // Right stereo sample
@@ -426,23 +454,14 @@ float get_lfo_value()
 	uint8_t index = ((uint8_t)lfo_phase) % LFO_TABLE_SIZE;
 	float value = lfo_table[index];
 
+	float lfo_phase_increment = TWO_PI * lfo_frequency * LFO_TABLE_SIZE / SAMPLE_RATE;
+
 	lfo_phase += lfo_phase_increment;
 
 	if (lfo_phase >= LFO_TABLE_SIZE) lfo_phase -= LFO_TABLE_SIZE;
 
 	return value;
 }
-
-//void uart_forward_loop(void) {
-//    while (1) {
-//        if (USART2->SR & USART_SR_RXNE) {
-//            uint8_t rx_byte = USART2->DR;
-//
-//            while (!(USART1->SR & USART_SR_TXE));
-//            USART1->DR = rx_byte;
-//        }
-//    }
-//}
 
 /* USER CODE END 4 */
 
