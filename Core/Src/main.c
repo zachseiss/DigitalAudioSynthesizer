@@ -40,6 +40,7 @@
 #define FREQUENCY_CORRECTION 1.01
 #define SAMPLE_RATE 48000.0f
 #define TWO_PI 6.283185f
+#define ATTACK_RATE 0.005f
 
 /* USER CODE END PD */
 
@@ -51,7 +52,6 @@
 /* Private variables ---------------------------------------------------------*/
 I2S_HandleTypeDef hi2s3;
 DMA_HandleTypeDef hdma_spi3_tx;
-
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
@@ -62,10 +62,15 @@ float lfo_table[LFO_TABLE_SIZE];
 // LFO state
 float lfo_phase = 0.0f;
 float frequency = 0.0f;
-float amplitude = 0.8f;
+float amplitude_current = 0.0f;
+float amplitude_target = 0.0f;
 float lfo_frequency = 0.0f;
-uint8_t lfo_active = 1;
-float lfo_depth = 3.0f;
+uint8_t lfo_active = 0;
+uint8_t drum_active = 0;
+uint8_t square_wave_active = 0;
+float lfo_depth = 0.0f;
+float pitch_change = 0.0f;
+float pitch_decay = 1.0f;
 
 // UART receive
 uint8_t rx_byte;
@@ -85,6 +90,7 @@ void init_lfo_table(float*, size_t);
 float get_lfo_value();
 void process_midi_bytes(void);
 void start_midi_reception(void);
+float get_current_amplitude(void);
 
 /* USER CODE END PFP */
 
@@ -129,8 +135,6 @@ int main(void)
   /* USER CODE BEGIN 2 */
   HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)i2s_tx_buffer, AUDIO_BUFFER_SIZE);
   start_midi_reception();
-  HAL_UART_Transmit_IT(&huart2, (uint8_t*)&rx_byte, 1);
-
 
   /* USER CODE END 2 */
 
@@ -320,60 +324,89 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
 void process_midi_bytes(void)
 {
+    static uint8_t running_status = 0;
+    static uint8_t data_byte1 = 0;
+    static uint8_t waiting_for_second_data_byte = 0;
 
-	static uint8_t status_byte = 0;
-	static uint8_t data_byte1 = 0;
-	static uint8_t data_byte2 = 0;
+    if (rx_byte >= 0x80)  // rx_byte is a status byte
+    {
+        if (rx_byte == 0xF8) return; // Ignore MIDI clock
 
-	if (rx_byte == 0xf8) return;
+        running_status = rx_byte;
+        waiting_for_second_data_byte = 0;
+        return;
+    }
 
-	if (!status_byte)
-	{
-		status_byte = rx_byte;
-		return;
-	}
+    // Now rx_byte is a data byte (0x00..0x7F)
 
-	else if (!data_byte1)
-	{
-		data_byte1 = rx_byte;
-		return;
-	}
-
-	else
-	{
-		data_byte2 = rx_byte;
-
-		if (data_byte2 == 0)
-		{
-			status_byte = 0;
-			data_byte1 = 0;
-			data_byte2 = 0;
-			return;
-		}
-
-		if (status_byte == 0x90)
-		{
-			frequency = 440.0f * pow(2.0f, (data_byte1-69.0f)/12.0f);
-			amplitude = data_byte2 / 100.0f;
-		}
-
-		else if (status_byte == 0xb0 && data_byte1 == 0x15)
-		{
-			lfo_frequency = (float)data_byte2;
-		}
-
-		else if (status_byte == 0xb0 && data_byte1 == 0x16)
-		{
-			lfo_depth = (float)data_byte2;
-		}
-
-		status_byte = 0;
-		data_byte1 = 0;
-		data_byte2 = 0;
-	}
+    if (running_status == 0)
+    {
+        // Got a data byte but no known running status. Ignore it.
+        return;
+    }
 
 
+    if (!waiting_for_second_data_byte)
+    {
+        data_byte1 = rx_byte;
+        waiting_for_second_data_byte = 1;
+    }
+    else
+    {
+        uint8_t data_byte2 = rx_byte;
+        waiting_for_second_data_byte = 0;
+
+        if ((running_status & 0xF0) == 0x90) // Note on (channel 0-15)
+        {
+        	switch (running_status)
+        	{
+        		case 0x90:
+        			drum_active = 0;
+
+					if (data_byte2 == 0)
+					{
+		//            	return;
+						amplitude_target = 0.0f; // Treat velocity 0 as Note Off
+					}
+					else
+					{
+						frequency = 440.0f * powf(2.0f, (data_byte1 - 69.0f) / 12.0f);
+						amplitude_target = data_byte2 / 127.0f;
+					}
+					break;
+        		case 0x99:
+        			frequency = 150.0f;
+					amplitude_target = data_byte2 / 127.0f;
+					lfo_active = 0;
+					drum_active = 1;
+					if (data_byte2 ^ 0x00) pitch_decay = 1.0f;
+					break;
+        	}
+        }
+        else if ((running_status & 0xF0) == 0xE0) // Pitch bend
+        {
+            uint16_t pitch_value = (data_byte2 << 7) | data_byte1;
+            int32_t centered = (int32_t)pitch_value - 8192;
+            pitch_change = (float)centered / 8192.0f;
+        }
+        else if ((running_status & 0xF0) == 0xB0) // Control change
+        {
+            if (data_byte1 == 0x15)
+            {
+                lfo_frequency = (float)data_byte2;
+            }
+            else if (data_byte1 == 0x16)
+            {
+                lfo_depth = (float)data_byte2;
+            }
+            else if (data_byte1 == 0x17)
+            {
+            	square_wave_active = data_byte2 == 1 ? 1 : 0;
+            }
+        }
+    }
 }
+
 
 void start_midi_reception(void)
 {
@@ -411,16 +444,30 @@ void fill_audio_buffer(uint32_t *buf, int16_t *table, uint8_t is_half)
 	/*
 	 * is_half is a boolean set to true if the DMA is at the half way point, false otherwise
 	 */
-
 	static float idx_f = 0.0f;
+	float pitch_multiplier = powf(2.0f, pitch_change*0.1666f);
+	amplitude_current = get_current_amplitude();
 
 	// calculate phase increment
-	float base_phase_increment = frequency * FREQUENCY_CORRECTION * TABLE_SIZE / (SAMPLE_RATE);
+	float base_phase_increment = frequency * pitch_multiplier * FREQUENCY_CORRECTION * TABLE_SIZE / (SAMPLE_RATE);
 	float phase_increment = base_phase_increment;
 
-	if (lfo_active)
+	if (drum_active)
 	{
-		float modulated_frequency = frequency + (get_lfo_value() * lfo_depth);
+		phase_increment *= pitch_decay;  //haven't compiled this yet!
+		pitch_decay *= 0.999f;
+
+		if (pitch_decay < 0.01f)
+		{
+			drum_active = 0;
+			pitch_decay = 1.0f;
+			frequency = 0;
+		}
+	}
+
+	if (lfo_active)  // will never be active if drum is active
+	{
+		float modulated_frequency = (frequency * pitch_multiplier) + (get_lfo_value() * lfo_depth);
 		phase_increment = 0.5f * (base_phase_increment + modulated_frequency * TABLE_SIZE / SAMPLE_RATE);
 	}
 
@@ -436,7 +483,12 @@ void fill_audio_buffer(uint32_t *buf, int16_t *table, uint8_t is_half)
 		float frac = idx_f - idx_u16;
 		int16_t a = table[idx_u16];
 		int16_t b = table[(idx_u16 + 1) % TABLE_SIZE];
-		int16_t sample = amplitude * ((1.0f - frac) * a + frac * b);
+		int16_t sample = amplitude_current * ((1.0f - frac) * a + frac * b);
+
+		if (square_wave_active)
+		{
+			sample = sample >= 0 ? 27000.0f : -27000.0f;
+		}
 
 		buf[i] = (uint16_t)sample;                             // Left stereo sample
 		buf[(i + 1) % AUDIO_BUFFER_SIZE] = (uint16_t)sample;   // Right stereo sample
@@ -444,8 +496,8 @@ void fill_audio_buffer(uint32_t *buf, int16_t *table, uint8_t is_half)
 
 		if (idx_f >= TABLE_SIZE) idx_f -= TABLE_SIZE;
 	}
-
 }
+
 
 float get_lfo_value()
 {
@@ -461,6 +513,25 @@ float get_lfo_value()
 	if (lfo_phase >= LFO_TABLE_SIZE) lfo_phase -= LFO_TABLE_SIZE;
 
 	return value;
+}
+
+float get_current_amplitude(void)
+{
+	// Ramp amplitude smoothly toward the target
+	if (amplitude_current < amplitude_target)
+	{
+	    amplitude_current += ATTACK_RATE;
+	    if (amplitude_current > amplitude_target)
+	        amplitude_current = amplitude_target;
+	}
+	else if (amplitude_current >= amplitude_target)
+	{
+	    amplitude_current *= 0.99995;
+	    if (amplitude_current < amplitude_target)
+	        amplitude_current = amplitude_target;
+	}
+
+	return amplitude_current;
 }
 
 /* USER CODE END 4 */
