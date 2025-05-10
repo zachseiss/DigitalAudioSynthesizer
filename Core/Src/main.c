@@ -21,8 +21,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "math.h"
 #include "stdint.h"
+#include "synth.h"
 
 /* USER CODE END Includes */
 
@@ -33,14 +33,11 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define AUDIO_BUFFER_SIZE 32
-#define HALF_BUFFER 16
+
 #define TABLE_SIZE 1024
 #define LFO_TABLE_SIZE 128
-#define FREQUENCY_CORRECTION 1.01
-#define SAMPLE_RATE 48000.0f
-#define TWO_PI 6.283185f
-#define ATTACK_RATE 0.005f
+
+
 
 /* USER CODE END PD */
 
@@ -55,22 +52,10 @@ DMA_HandleTypeDef hdma_spi3_tx;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-uint32_t i2s_tx_buffer[AUDIO_BUFFER_SIZE];
-int16_t sine_table[TABLE_SIZE];
-float lfo_table[LFO_TABLE_SIZE];
+
 
 // LFO state
-float lfo_phase = 0.0f;
-float frequency = 0.0f;
-float amplitude_current = 0.0f;
-float amplitude_target = 0.0f;
-float lfo_frequency = 0.0f;
-uint8_t lfo_active = 0;
-uint8_t drum_active = 0;
-uint8_t square_wave_active = 0;
-float lfo_depth = 0.0f;
-float pitch_change = 0.0f;
-float pitch_decay = 1.0f;
+
 
 // UART receive
 uint8_t rx_byte;
@@ -84,13 +69,9 @@ static void MX_DMA_Init(void);
 static void MX_I2S3_Init(void);
 static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
-void fill_audio_buffer(uint32_t*, int16_t*, uint8_t);
-void init_sine_table(int16_t*, size_t);
-void init_lfo_table(float*, size_t);
-float get_lfo_value();
+
 void process_midi_bytes(void);
 void start_midi_reception(void);
-float get_current_amplitude(void);
 
 /* USER CODE END PFP */
 
@@ -115,8 +96,8 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-  init_sine_table(sine_table, TABLE_SIZE);
-  init_lfo_table(lfo_table, LFO_TABLE_SIZE);
+  uint32_t i2s_tx_buffer[AUDIO_BUFFER_SIZE];
+
 
   /* USER CODE END Init */
 
@@ -299,19 +280,7 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef *hi2s)
-{
-	// Called when DMA has sent the last element of the buffer
-	// at this point we want to re-fill the second half of the audio buffer
-	fill_audio_buffer(i2s_tx_buffer, sine_table, 0);
-}
 
-void HAL_I2S_TxHalfCpltCallback(I2S_HandleTypeDef *hi2s)
-{
-	// Called when DMA has sent the last element of the first half of the audio buffer
-	// at this point we want to re-fill the first half of the audio buffer
-	fill_audio_buffer(i2s_tx_buffer, sine_table, 1);
-}
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
@@ -413,126 +382,6 @@ void start_midi_reception(void)
 	HAL_UART_Receive_IT(&huart2, (uint8_t*)&rx_byte, 1);
 }
 
-void init_sine_table(int16_t *table, size_t length)
-{
-	// this expression sets the frequency so that the generated sine wave
-	// will fill the sine wave table with a single full cycle
-	float frequency = SAMPLE_RATE / TABLE_SIZE;
-
-	const float PHASE_INCREMENT = TWO_PI * frequency / SAMPLE_RATE;
-	float phase = 0.0f;
-
-	for (size_t i = 0; i < length; i += 1)
-	{
-		float sample_f = sinf(phase);
-		int16_t sample_i16 = (int16_t)(sample_f * 32767.0f);
-		table[i] = sample_i16;
-		phase += PHASE_INCREMENT;
-	}
-}
-
-void init_lfo_table(float *table, size_t length)
-{
-	for (size_t i = 0; i < LFO_TABLE_SIZE; i++)
-	{
-		table[i] = sinf(TWO_PI * i / LFO_TABLE_SIZE);
-	}
-}
-
-void fill_audio_buffer(uint32_t *buf, int16_t *table, uint8_t is_half)
-{
-	/*
-	 * is_half is a boolean set to true if the DMA is at the half way point, false otherwise
-	 */
-	static float idx_f = 0.0f;
-	float pitch_multiplier = powf(2.0f, pitch_change*0.1666f);
-	amplitude_current = get_current_amplitude();
-
-	// calculate phase increment
-	float base_phase_increment = frequency * pitch_multiplier * FREQUENCY_CORRECTION * TABLE_SIZE / (SAMPLE_RATE);
-	float phase_increment = base_phase_increment;
-
-	if (drum_active)
-	{
-		phase_increment *= pitch_decay;  //haven't compiled this yet!
-		pitch_decay *= 0.999f;
-
-		if (pitch_decay < 0.01f)
-		{
-			drum_active = 0;
-			pitch_decay = 1.0f;
-			frequency = 0;
-		}
-	}
-
-	if (lfo_active)  // will never be active if drum is active
-	{
-		float modulated_frequency = (frequency * pitch_multiplier) + (get_lfo_value() * lfo_depth);
-		phase_increment = 0.5f * (base_phase_increment + modulated_frequency * TABLE_SIZE / SAMPLE_RATE);
-	}
-
-	uint16_t start = is_half ? 0 : HALF_BUFFER;
-	uint16_t end = is_half ? HALF_BUFFER : AUDIO_BUFFER_SIZE;
-
-	for (size_t i = start; i < end; i += 2)
-	{
-
-		uint16_t idx_u16 = (uint16_t)idx_f;
-
-		// linear interpolation
-		float frac = idx_f - idx_u16;
-		int16_t a = table[idx_u16];
-		int16_t b = table[(idx_u16 + 1) % TABLE_SIZE];
-		int16_t sample = amplitude_current * ((1.0f - frac) * a + frac * b);
-
-		if (square_wave_active)
-		{
-			sample = sample >= 0 ? 27000.0f : -27000.0f;
-		}
-
-		buf[i] = (uint16_t)sample;                             // Left stereo sample
-		buf[(i + 1) % AUDIO_BUFFER_SIZE] = (uint16_t)sample;   // Right stereo sample
-		idx_f = idx_f + phase_increment;
-
-		if (idx_f >= TABLE_SIZE) idx_f -= TABLE_SIZE;
-	}
-}
-
-
-float get_lfo_value()
-{
-	static float lfo_phase = 0;
-
-	uint8_t index = ((uint8_t)lfo_phase) % LFO_TABLE_SIZE;
-	float value = lfo_table[index];
-
-	float lfo_phase_increment = TWO_PI * lfo_frequency * LFO_TABLE_SIZE / SAMPLE_RATE;
-
-	lfo_phase += lfo_phase_increment;
-
-	if (lfo_phase >= LFO_TABLE_SIZE) lfo_phase -= LFO_TABLE_SIZE;
-
-	return value;
-}
-
-float get_current_amplitude(void)
-{
-	// Ramp amplitude smoothly toward the target
-	if (amplitude_current < amplitude_target)
-	{
-	    amplitude_current += ATTACK_RATE;
-	    if (amplitude_current > amplitude_target)
-	        amplitude_current = amplitude_target;
-	}
-	else if (amplitude_current >= amplitude_target)
-	{
-	    amplitude_current *= 0.99995;
-	    if (amplitude_current < amplitude_target)
-	        amplitude_current = amplitude_target;
-	}
-
-	return amplitude_current;
-}
 
 /* USER CODE END 4 */
 
