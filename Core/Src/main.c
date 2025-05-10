@@ -23,7 +23,7 @@
 /* USER CODE BEGIN Includes */
 #include "stdint.h"
 #include "synth.h"
-
+#include "midi.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -33,10 +33,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
-#define TABLE_SIZE 1024
-#define LFO_TABLE_SIZE 128
-
 
 
 /* USER CODE END PD */
@@ -52,13 +48,8 @@ DMA_HandleTypeDef hdma_spi3_tx;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-
-
-// LFO state
-
-
-// UART receive
 uint8_t rx_byte;
+uint32_t i2s_tx_buffer[AUDIO_BUFFER_SIZE];
 
 /* USER CODE END PV */
 
@@ -69,9 +60,6 @@ static void MX_DMA_Init(void);
 static void MX_I2S3_Init(void);
 static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
-
-void process_midi_bytes(void);
-void start_midi_reception(void);
 
 /* USER CODE END PFP */
 
@@ -96,7 +84,6 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-  uint32_t i2s_tx_buffer[AUDIO_BUFFER_SIZE];
 
 
   /* USER CODE END Init */
@@ -114,8 +101,9 @@ int main(void)
   MX_I2S3_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
+  synth_init();
   HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)i2s_tx_buffer, AUDIO_BUFFER_SIZE);
-  start_midi_reception();
+  HAL_UART_Receive_IT(&huart2, (uint8_t*)&rx_byte, 1);
 
   /* USER CODE END 2 */
 
@@ -280,107 +268,6 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
-
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-{
-	if (huart -> Instance == USART2)
-	{
-		process_midi_bytes();
-		start_midi_reception();
-	}
-}
-
-void process_midi_bytes(void)
-{
-    static uint8_t running_status = 0;
-    static uint8_t data_byte1 = 0;
-    static uint8_t waiting_for_second_data_byte = 0;
-
-    if (rx_byte >= 0x80)  // rx_byte is a status byte
-    {
-        if (rx_byte == 0xF8) return; // Ignore MIDI clock
-
-        running_status = rx_byte;
-        waiting_for_second_data_byte = 0;
-        return;
-    }
-
-    // Now rx_byte is a data byte (0x00..0x7F)
-
-    if (running_status == 0)
-    {
-        // Got a data byte but no known running status. Ignore it.
-        return;
-    }
-
-
-    if (!waiting_for_second_data_byte)
-    {
-        data_byte1 = rx_byte;
-        waiting_for_second_data_byte = 1;
-    }
-    else
-    {
-        uint8_t data_byte2 = rx_byte;
-        waiting_for_second_data_byte = 0;
-
-        if ((running_status & 0xF0) == 0x90) // Note on (channel 0-15)
-        {
-        	switch (running_status)
-        	{
-        		case 0x90:
-        			drum_active = 0;
-
-					if (data_byte2 == 0)
-					{
-		//            	return;
-						amplitude_target = 0.0f; // Treat velocity 0 as Note Off
-					}
-					else
-					{
-						frequency = 440.0f * powf(2.0f, (data_byte1 - 69.0f) / 12.0f);
-						amplitude_target = data_byte2 / 127.0f;
-					}
-					break;
-        		case 0x99:
-        			frequency = 150.0f;
-					amplitude_target = data_byte2 / 127.0f;
-					lfo_active = 0;
-					drum_active = 1;
-					if (data_byte2 ^ 0x00) pitch_decay = 1.0f;
-					break;
-        	}
-        }
-        else if ((running_status & 0xF0) == 0xE0) // Pitch bend
-        {
-            uint16_t pitch_value = (data_byte2 << 7) | data_byte1;
-            int32_t centered = (int32_t)pitch_value - 8192;
-            pitch_change = (float)centered / 8192.0f;
-        }
-        else if ((running_status & 0xF0) == 0xB0) // Control change
-        {
-            if (data_byte1 == 0x15)
-            {
-                lfo_frequency = (float)data_byte2;
-            }
-            else if (data_byte1 == 0x16)
-            {
-                lfo_depth = (float)data_byte2;
-            }
-            else if (data_byte1 == 0x17)
-            {
-            	square_wave_active = data_byte2 == 1 ? 1 : 0;
-            }
-        }
-    }
-}
-
-
-void start_midi_reception(void)
-{
-	HAL_UART_Receive_IT(&huart2, (uint8_t*)&rx_byte, 1);
-}
 
 
 /* USER CODE END 4 */

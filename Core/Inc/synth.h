@@ -22,6 +22,22 @@
 #define TWO_PI 6.283185f
 #define ATTACK_RATE 0.005f
 
+enum param_id
+{
+	FREQUENCY,
+	AMPLITUDE_TARGET,
+	DECAY,
+	LFO_FREQUENCY,
+	LFO_DEPTH,
+	LFO_PHASE,
+	PITCH_BEND,
+	PITCH_DECAY,
+	PITCH_DECAY_DELTA,
+	PITCH_DECAY_LOWER_LIMIT,
+	LFO_ACTIVE,
+	DRUM_ACTIVE
+};
+
 typedef struct
 {
 	float frequency;
@@ -39,8 +55,8 @@ typedef struct
 }SynthParams;
 
 // Globals
-extern SynthParams synth_params;
 extern I2S_HandleTypeDef hi2s3;
+extern uint32_t i2s_tx_buffer[AUDIO_BUFFER_SIZE];
 
 
 // Public API

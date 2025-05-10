@@ -11,22 +11,7 @@
 // global synth parameters
 SynthParams synth_params;
 
-// PRIVATE CONSTANTS AND ENUMS
-enum param_id
-{
-	FREQUENCY,
-	AMPLITUDE_TARGET,
-	DECAY,
-	LFO_FREQUENCY,
-	LFO_DEPTH,
-	LFO_PHASE,
-	PITCH_BEND,
-	PITCH_DECAY,
-	PITCH_DECAY_DELTA,
-	PITCH_DECAY_LOWER_LIMIT,
-	LFO_ACTIVE,
-	DRUM_ACTIVE
-};
+// PRIVATE CONSTANTS
 
 float* const synth_param_ptrs[] =
 {
@@ -48,7 +33,6 @@ float* const synth_param_ptrs[] =
 
 
 // PRIVATE VARIABLES
-uint32_t i2s_tx_buffer[AUDIO_BUFFER_SIZE];
 int16_t sine_table[WAVETABLE_STD_SIZE];
 float lfo_table[WAVETABLE_REDUCED_SIZE];
 
@@ -65,18 +49,18 @@ void synth_init(void)
 {
 	init_sine_table(sine_table, WAVETABLE_STD_SIZE);
 	init_lfo_table(lfo_table, WAVETABLE_REDUCED_SIZE);
-	synth_params.frequency = 0.0f;
-	synth_params.amplitude_target = 0.0f;
-	synth_params.decay = 0.99995;
-	synth_params.lfo_frequency = 0.0f;
-	synth_params.lfo_depth = 0.0f;
-	synth_params.lfo_phase = 0.0f;
-	synth_params.pitch_bend = 0.0f;
-	synth_params.pitch_decay = 1.0f;
-	synth_params.pitch_decay_delta = 0.999f;
-	synth_params.pitch_decay_lower_limit = 0.01f;
-	synth_params.lfo_active = 0.0f;  // 'fake' boolean value
-	synth_params.drum_active = 0.0f; // 'fake' boolean value
+	synth_set_parameter(FREQUENCY, 0.0f);
+	synth_set_parameter(AMPLITUDE_TARGET, 0.0f);
+	synth_set_parameter(DECAY, 0.9995);
+	synth_set_parameter(LFO_FREQUENCY, 0.0f);
+	synth_set_parameter(LFO_DEPTH, 0.0f);
+	synth_set_parameter(LFO_PHASE, 0.0f);
+	synth_set_parameter(PITCH_BEND, 0.0f);
+	synth_set_parameter(PITCH_DECAY, 1.0f);
+	synth_set_parameter(PITCH_DECAY_DELTA, 0.999f);
+	synth_set_parameter(PITCH_DECAY_LOWER_LIMIT, 0.01f);
+	synth_set_parameter(LFO_ACTIVE, 0.0f);
+	synth_set_parameter(DRUM_ACTIVE, 0.0f);
 }
 
 void synth_set_parameter(uint8_t param_id, float val)
@@ -95,14 +79,14 @@ static void fill_audio_buffer(uint32_t *buf, int16_t *wavetable, uint8_t is_half
 	static float idx_f = 0.0f;
 	float pitch_bend_multiplier = powf(2.0f, synth_params.pitch_bend * 0.1666f);
 
-	float amplitude_current = 0;  // set to 0 just to avoid 'uninitialized' warning
+	static float amplitude_current = 0;  // set to 0 just to avoid 'uninitialized' warning
 	get_current_amplitude(&amplitude_current);
 
 	// calculate phase increment
 	float base_phase_increment = synth_params.frequency * pitch_bend_multiplier * FREQUENCY_CORRECTION * WAVETABLE_STD_SIZE / (SAMPLE_RATE);
 	float phase_increment = base_phase_increment;
 
-	if (synth_params.drum_active)
+	if (synth_params.drum_active > 0.5)  // remember drum_active is a fake boolean
 	{
 		phase_increment *= synth_params.pitch_decay;  //haven't compiled this yet!
 		synth_params.pitch_decay *= synth_params.pitch_decay_delta;
@@ -115,7 +99,7 @@ static void fill_audio_buffer(uint32_t *buf, int16_t *wavetable, uint8_t is_half
 		}
 	}
 
-	if (synth_params.lfo_active)  // will never be active if drum is active
+	if (synth_params.lfo_active > 0.5)  // will never be active if drum is active  (also remember fake boolean)
 	{
 		float modulated_frequency = (synth_params.frequency * pitch_bend_multiplier) + (get_lfo_value() * synth_params.lfo_depth);
 		phase_increment = 0.5f * (base_phase_increment + modulated_frequency * WAVETABLE_STD_SIZE / SAMPLE_RATE);
