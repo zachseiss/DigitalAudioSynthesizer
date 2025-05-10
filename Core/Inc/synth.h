@@ -2,7 +2,7 @@
  * synth.h
  *
  *  Created on: May 9, 2025
- *      Author: zach
+ *      Author: Zach S
  */
 
 #include <stdint.h>
@@ -20,12 +20,13 @@
 #define FREQUENCY_CORRECTION 1.01
 #define SAMPLE_RATE 48000.0f
 #define TWO_PI 6.283185f
-#define ATTACK_RATE 0.005f
+//#define ATTACK_RATE 0.005f
 
 enum param_id
 {
 	FREQUENCY,
 	AMPLITUDE_TARGET,
+	ATTACK,
 	DECAY,
 	LFO_FREQUENCY,
 	LFO_DEPTH,
@@ -42,6 +43,7 @@ typedef struct
 {
 	float frequency;
 	float amplitude_target;
+	float attack;
 	float decay;            // amplitude decay
 	float lfo_frequency;
 	float lfo_depth;
@@ -64,6 +66,9 @@ void synth_init(void);
 
 void synth_set_parameter(uint8_t param_id, float val);
 
+float synth_get_parameter(uint8_t param_id);
+
+// the two functions below are not implemented.  not sure if that's the route I want to go?
 void synth_note_on(uint8_t note, uint8_t velocity);
 
 void synth_note_off(uint8_t note);

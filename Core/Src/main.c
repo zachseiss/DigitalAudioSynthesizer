@@ -21,7 +21,6 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "stdint.h"
 #include "synth.h"
 #include "midi.h"
 /* USER CODE END Includes */
@@ -102,6 +101,7 @@ int main(void)
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
   synth_init();
+  init_midi_handlers();
   HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)i2s_tx_buffer, AUDIO_BUFFER_SIZE);
   HAL_UART_Receive_IT(&huart2, (uint8_t*)&rx_byte, 1);
 
@@ -112,6 +112,7 @@ int main(void)
 
   while (1)
   {
+	  // do absolutely nothing!
 
     /* USER CODE END WHILE */
 

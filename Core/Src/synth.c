@@ -2,7 +2,7 @@
  * synth.c
  *
  *  Created on: May 9, 2025
- *      Author: Zach Seiss
+ *      Author: Zach S
  */
 
 #include <math.h>
@@ -17,6 +17,7 @@ float* const synth_param_ptrs[] =
 {
 		&synth_params.frequency,
 		&synth_params.amplitude_target,
+		&synth_params.attack,
 		&synth_params.decay,
 		&synth_params.lfo_frequency,
 		&synth_params.lfo_depth,
@@ -51,7 +52,8 @@ void synth_init(void)
 	init_lfo_table(lfo_table, WAVETABLE_REDUCED_SIZE);
 	synth_set_parameter(FREQUENCY, 0.0f);
 	synth_set_parameter(AMPLITUDE_TARGET, 0.0f);
-	synth_set_parameter(DECAY, 0.9995);
+	synth_set_parameter(ATTACK, 0.005);
+	synth_set_parameter(DECAY, 0.99995);
 	synth_set_parameter(LFO_FREQUENCY, 0.0f);
 	synth_set_parameter(LFO_DEPTH, 0.0f);
 	synth_set_parameter(LFO_PHASE, 0.0f);
@@ -71,6 +73,11 @@ void synth_set_parameter(uint8_t param_id, float val)
 	}
 }
 
+float synth_get_parameter(uint8_t param_id)
+{
+	return *synth_param_ptrs[param_id];
+}
+
 
 // PRIVATE FUNCTIONS
 
@@ -83,26 +90,26 @@ static void fill_audio_buffer(uint32_t *buf, int16_t *wavetable, uint8_t is_half
 	get_current_amplitude(&amplitude_current);
 
 	// calculate phase increment
-	float base_phase_increment = synth_params.frequency * pitch_bend_multiplier * FREQUENCY_CORRECTION * WAVETABLE_STD_SIZE / (SAMPLE_RATE);
+	float base_phase_increment = synth_params.frequency * pitch_bend_multiplier * FREQUENCY_CORRECTION * WAVETABLE_STD_SIZE / SAMPLE_RATE;
 	float phase_increment = base_phase_increment;
 
 	if (synth_params.drum_active > 0.5)  // remember drum_active is a fake boolean
 	{
-		phase_increment *= synth_params.pitch_decay;  //haven't compiled this yet!
+		phase_increment *= synth_params.pitch_decay;
 		synth_params.pitch_decay *= synth_params.pitch_decay_delta;
 
 		if (synth_params.pitch_decay < synth_params.pitch_decay_lower_limit)
 		{
-			synth_params.drum_active = 0;
+			synth_params.drum_active = 0.0f;
 			synth_params.pitch_decay = 1.0f;
-			synth_params.frequency = 0;
+			synth_params.frequency = 0.0f;
 		}
 	}
 
 	if (synth_params.lfo_active > 0.5)  // will never be active if drum is active  (also remember fake boolean)
 	{
-		float modulated_frequency = (synth_params.frequency * pitch_bend_multiplier) + (get_lfo_value() * synth_params.lfo_depth);
-		phase_increment = 0.5f * (base_phase_increment + modulated_frequency * WAVETABLE_STD_SIZE / SAMPLE_RATE);
+		float modulated_frequency = synth_params.frequency + (get_lfo_value() * synth_params.lfo_depth);
+		phase_increment = 0.5f * (base_phase_increment + modulated_frequency * WAVETABLE_STD_SIZE / SAMPLE_RATE);  // multiply by 1/2 because summing two waves
 	}
 
 	uint16_t start = is_half ? 0 : HALF_BUFFER;
@@ -133,7 +140,7 @@ static void get_current_amplitude(float *p_amplitude_current)
 	// Ramp amplitude smoothly toward the target
 	if (*p_amplitude_current < synth_params.amplitude_target)
 	{
-	    *p_amplitude_current += ATTACK_RATE;
+	    *p_amplitude_current += synth_params.attack;
 	    if (*p_amplitude_current > synth_params.amplitude_target)
 	        *p_amplitude_current = synth_params.amplitude_target;
 	}
