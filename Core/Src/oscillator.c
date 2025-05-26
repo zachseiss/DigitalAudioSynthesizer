@@ -15,10 +15,10 @@
 
 
 // PRIVATE VARIABLES
-float sine_wavetable[WAVETABLE_STD_SIZE];
-float square_wavetable[WAVETABLE_STD_SIZE];
-float saw_wavetable[WAVETABLE_STD_SIZE];
-float triangle_wavetable[WAVETABLE_STD_SIZE];
+//float sine_wavetable[WAVETABLE_STD_SIZE];
+//float square_wavetable[WAVETABLE_STD_SIZE];
+//float saw_wavetable[WAVETABLE_STD_SIZE];
+//float triangle_wavetable[WAVETABLE_STD_SIZE];
 
 
 // PUBLIC API FUNCTION DEFINITIONS
@@ -34,15 +34,15 @@ int16_t oscillator_process(Oscillator *osc)
 		// linear interpolation
 		float frac = osc->phase[i] - idx_u16;
 		int16_t a = osc->wave_table[idx_u16];
-		int16_t b = osc->wave_table[(idx_u16 + 1) % WAVETABLE_STD_SIZE];
+		int16_t b = osc->wave_table[idx_u16 + 1];
 		int16_t sample_i = (1.0f - frac) * a + frac * b;
 		sample = sample + sample_i;
 
 		osc->phase[i] += osc->phase_increment[i];
 
-		if (osc->phase[i] >= WAVETABLE_STD_SIZE) osc->phase[i] -= WAVETABLE_STD_SIZE;
+		if (osc->phase[i] >= WAVETABLE_STD_SIZE) osc->phase[i] -= (WAVETABLE_STD_SIZE);
 	}
-	final_sample = (int16_t)(sample / (float)num_unison);
+	final_sample = (int16_t)(sample / num_unison);
 
 	return final_sample;
 }

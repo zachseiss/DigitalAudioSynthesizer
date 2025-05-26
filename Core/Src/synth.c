@@ -23,13 +23,16 @@ float* const synth_param_ptrs[] =
 		&synth_params.num_oscillators
 };
 
+
 #define NUM_SYNTH_PARAMS sizeof(synth_param_ptrs) / sizeof(synth_param_ptrs[0])
 
 
 // PRIVATE VARIABLES
 int16_t wavetables[NUM_WAVETABLES][WAVETABLE_STD_SIZE];
+float voice_gain[] = {0.0f, 1/1.0f, 1/1.9f, 1/2.8f, 1/3.8f, 1/4.8f, 1/5.8f, 1/6.8f, 1/7.8f, 1/8.8f, 1/9.8f, 1/10.8f, 1/11.8f, 1/12.8f, 1/13.8f, 1/14.8f};
 
-Oscillator oscillators[NUM_OSCILLATORS];
+
+//Oscillator oscillators[NUM_OSCILLATORS];
 Voice voices[MIDI_KEY_MAX];
 
 // PRIVATE FUNCTION PROTOTYPES
@@ -54,6 +57,10 @@ void synth_note_on(uint8_t note, uint8_t velocity)
 void synth_note_off(uint8_t note)
 {
 	voices[note].is_active = 0;
+//	for (int k = 0; k < synth_get_parameter(UNISON); k++)
+//	{
+//		voices[note].oscillator[0].phase[k] = 0.0f;
+//	}
 }
 
 void synth_set_parameter(uint8_t param_id, float val)
@@ -73,27 +80,30 @@ float synth_get_parameter(uint8_t param_id)
 
 static void fill_audio_buffer(uint32_t *buf, Voice* voices, uint8_t is_half)
 {
-	static float ampltd = 0.9;
-	uint8_t num_voices = 0;
-	int32_t sample = 0;
+	static float ampltd = 0.5;
+
 	int16_t final_sample = 0;
+
 
 	uint16_t start = is_half ? 0 : HALF_BUFFER;
 	uint16_t end = is_half ? HALF_BUFFER : AUDIO_BUFFER_SIZE;
 
 	for (size_t i = start; i < end; i += 2)
 	{
+		uint8_t num_voices = 0;
+		int32_t sample = 0;
+
 		for (size_t j = MIDI_KEY_MIN; j < MIDI_KEY_MAX; j++)  // iterate through all voices
 		{
 			if (voices[j].is_active)
 			{
-				num_voices += 1;
 				sample += oscillator_process(voices[j].oscillator);
+				num_voices += 1;
 			}
 		}
 
 		if (num_voices > 0)
-			final_sample = (uint16_t)(ampltd * (sample/(float)num_voices));
+			final_sample = (int16_t)(ampltd * sample * voice_gain[num_voices]);
 		else
 			final_sample = 0;
 

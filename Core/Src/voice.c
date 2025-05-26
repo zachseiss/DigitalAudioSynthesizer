@@ -28,7 +28,7 @@ void voice_init_voices(Voice* voices, int16_t wavetables[][WAVETABLE_STD_SIZE])
 			{
 				float freq_k = 440.0f * powf(2.0f, (i - 69.0f) / 12.0f);
 				voices[i].oscillator[j].frequency[k] = freq_k;
-				voices[i].oscillator[j].phase_increment[k] = (float)WAVETABLE_STD_SIZE * freq_k / SAMPLE_RATE;
+				voices[i].oscillator[j].phase_increment[k] = WAVETABLE_STD_SIZE * freq_k / SAMPLE_RATE;
 			}
 			voices[i].is_active = 0;
 		}

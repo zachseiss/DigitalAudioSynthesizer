@@ -12,9 +12,6 @@
 #include "wavetable.h"
 
 
-#define WAVETABLE_STD_SIZE 1024
-
-
 typedef struct
 {
 	float frequency[MAX_UNISON_VOICES];
