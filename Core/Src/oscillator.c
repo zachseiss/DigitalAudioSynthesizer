@@ -15,10 +15,6 @@
 
 
 // PRIVATE VARIABLES
-//float sine_wavetable[WAVETABLE_STD_SIZE];
-//float square_wavetable[WAVETABLE_STD_SIZE];
-//float saw_wavetable[WAVETABLE_STD_SIZE];
-//float triangle_wavetable[WAVETABLE_STD_SIZE];
 
 
 // PUBLIC API FUNCTION DEFINITIONS
@@ -40,7 +36,7 @@ int16_t oscillator_process(Oscillator *osc)
 
 		osc->phase[i] += osc->phase_increment[i];
 
-		if (osc->phase[i] >= WAVETABLE_STD_SIZE) osc->phase[i] -= (WAVETABLE_STD_SIZE);
+		if (osc->phase[i] >= WAVETABLE_STD_SIZE) osc->phase[i] -= WAVETABLE_STD_SIZE;
 	}
 	final_sample = (int16_t)(sample / num_unison);
 
