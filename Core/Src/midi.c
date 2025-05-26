@@ -42,8 +42,6 @@ static void process_midi_bytes(void)
 	static MidiStateMachine midi_state = WAIT_STATUS;
     static uint8_t running_status = 0;
     static uint8_t data_byte1 = 0;
-    static uint8_t current_note = 0;
-    static float lfo_active_save_state; // saves previous LFO on/off state when we need to turn it off for drums
 
     if (rx_byte == CLK_MSG) return;  // ignore clock bytes
 
@@ -79,44 +77,29 @@ static void process_midi_bytes(void)
     				switch (status_subtype)
     				{
     					case KEY_NOTE:
-    	        			synth_set_parameter(DRUM_ACTIVE, 0.0f);
 
-    						if (data_byte2 == 0 && data_byte1 == current_note)
+    						if (data_byte2 != 0)
     						{
-    							synth_set_parameter(AMPLITUDE_TARGET, 0.0f);
+    							synth_note_on(data_byte1, data_byte2);
     						}
-    						else if (data_byte2 != 0)
+    						else
     						{
-    							synth_set_parameter(FREQUENCY, 440.0f * powf(2.0f, (data_byte1 - 69.0f) / 12.0f));
-    							synth_set_parameter(AMPLITUDE_TARGET, data_byte2 / 127.0f);
-    							current_note = data_byte1;
+    							synth_note_off(data_byte1);
     						}
     						break;
 
-    					case DRUM_NOTE:
-    	        			synth_set_parameter(FREQUENCY, 150.0f);
-    						synth_set_parameter(AMPLITUDE_TARGET, data_byte2 / 127.0f);
-    						lfo_active_save_state = synth_get_parameter(LFO_ACTIVE);
-    						synth_set_parameter(LFO_ACTIVE, 0.0f);
-    						synth_set_parameter(DRUM_ACTIVE, 1.0f);
-    						if (data_byte2 ^ 0x00)
-    						{
-    							synth_set_parameter(PITCH_DECAY, 1.0f);
-    							synth_set_parameter(LFO_ACTIVE, lfo_active_save_state);
-    						}
-    						break;
     				}
 
-    			case PITCH_BEND:
-    	            uint16_t pitch_value = (data_byte2 << 7) | data_byte1;
-    	            int32_t centered = (int32_t)pitch_value - 8192;
-    	            synth_set_parameter(PITCH_BEND, (float)centered / 8192.0f);
+//    			case PITCH_BEND:
+//    	            uint16_t pitch_value = (data_byte2 << 7) | data_byte1;
+//    	            int32_t centered = (int32_t)pitch_value - 8192;
+//    	            synth_set_parameter(PITCH_BEND, (float)centered / 8192.0f);
 
-    			case CONTROL_CHANGE:
-    	        	if (control_change_handlers[data_byte1])
-    	        	{
-    	        		control_change_handlers[data_byte1](data_byte2);
-    	        	}
+//    			case CONTROL_CHANGE:
+//    	        	if (control_change_handlers[data_byte1])
+//    	        	{
+//    	        		control_change_handlers[data_byte1](data_byte2);
+//    	        	}
     		}
 
     }
@@ -128,35 +111,15 @@ static void start_midi_reception(void)
 	HAL_UART_Receive_IT(&huart2, (uint8_t*)&rx_byte, 1);
 }
 
-static void handle_lfo_frequency(uint8_t value)
-{
-	synth_set_parameter(LFO_ACTIVE, value >= 1 ? 1.0f : 0.0f);
-	synth_set_parameter(LFO_FREQUENCY, (float)value);
-}
-
-static void handle_lfo_depth(uint8_t value)
-{
-	synth_set_parameter(LFO_DEPTH, (float)value);
-}
-
-static void handle_attack(uint8_t value)
-{
-	synth_set_parameter(ATTACK, value == 0 ? 0.005f : 0.000025 * value);
-}
-
-static void handle_decay(uint8_t value)
-{
-	synth_set_parameter(DECAY, value == 0 ? .99995f : 1.0f - .0003 * value);
-}
 
 // PUBLIC API FUNCTION DEFINITIONS
-void init_midi_handlers(void)
-{
-	control_change_handlers[CC_021] = handle_lfo_frequency;
-	control_change_handlers[CC_022] = handle_lfo_depth;
-	control_change_handlers[CC_023] = handle_attack;
-	control_change_handlers[CC_024] = handle_decay;
-}
+//void init_midi_handlers(void)
+//{
+//	control_change_handlers[CC_021] = handle_lfo_frequency;
+//	control_change_handlers[CC_022] = handle_lfo_depth;
+//	control_change_handlers[CC_023] = handle_attack;
+//	control_change_handlers[CC_024] = handle_decay;
+//}
 
 
 // HAL CALLBACKS

@@ -100,8 +100,7 @@ int main(void)
   MX_I2S3_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-  synth_init();
-  init_midi_handlers();
+  synth_init_synth();
   HAL_I2S_Transmit_DMA(&hi2s3, (uint16_t*)i2s_tx_buffer, AUDIO_BUFFER_SIZE);
   HAL_UART_Receive_IT(&huart2, (uint8_t*)&rx_byte, 1);
 

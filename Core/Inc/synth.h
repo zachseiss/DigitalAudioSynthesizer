@@ -8,52 +8,31 @@
 #include <stdint.h>
 #include <math.h>
 #include "stm32f4xx_hal.h"
+#include "oscillator.h"
+
 
 
 #ifndef INC_SYNTH_H_
 #define INC_SYNTH_H_
 
-#define WAVETABLE_STD_SIZE 1024
-#define WAVETABLE_REDUCED_SIZE 128
 #define AUDIO_BUFFER_SIZE 32
 #define HALF_BUFFER 16
 #define FREQUENCY_CORRECTION 1.01
 #define SAMPLE_RATE 48000.0f
 #define TWO_PI 6.283185f
-//#define ATTACK_RATE 0.005f
 
 enum param_id
 {
-	FREQUENCY,
-	AMPLITUDE_TARGET,
-	ATTACK,
-	DECAY,
-	LFO_FREQUENCY,
-	LFO_DEPTH,
-	LFO_PHASE,
-	PITCH_BEND,
-	PITCH_DECAY,
-	PITCH_DECAY_DELTA,
-	PITCH_DECAY_LOWER_LIMIT,
-	LFO_ACTIVE,
-	DRUM_ACTIVE
+	UNISON,
+	DETUNE,
+	NUM_OSCILLATORS
 };
 
 typedef struct
 {
-	float frequency;
-	float amplitude_target;
-	float attack;
-	float decay;            // amplitude decay
-	float lfo_frequency;
-	float lfo_depth;
-	float lfo_phase;
-	float pitch_bend;
-	float pitch_decay;
-	float pitch_decay_delta;  // the change in pitch-decay with each iteration/sample
-	float pitch_decay_lower_limit;  // when pitch-decay goes below lower limit, it will reset to 1.0f
-	float lfo_active;    // fake bool
-	float drum_active;   // fake bool
+	float unison;
+	float detune;
+	float num_oscillators;
 }SynthParams;
 
 // Globals
@@ -61,10 +40,13 @@ extern I2S_HandleTypeDef hi2s3;
 extern uint32_t i2s_tx_buffer[AUDIO_BUFFER_SIZE];
 
 
+
 // Public API
-void synth_init(void);
+void synth_init_synth(void);
 
 void synth_set_parameter(uint8_t param_id, float val);
+
+void oscillator_set_frequency(Oscillator* osc, float frequency);
 
 float synth_get_parameter(uint8_t param_id);
 
