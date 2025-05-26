@@ -29,10 +29,27 @@ float* const synth_param_ptrs[] =
 
 // PRIVATE VARIABLES
 int16_t wavetables[NUM_WAVETABLES][WAVETABLE_STD_SIZE];
-float voice_gain[] = {0.0f, 1/1.0f, 1/1.9f, 1/2.8f, 1/3.8f, 1/4.8f, 1/5.8f, 1/6.8f, 1/7.8f, 1/8.8f, 1/9.8f, 1/10.8f, 1/11.8f, 1/12.8f, 1/13.8f, 1/14.8f};
+float voice_gain[] =
+{
+		0.0f,
+		1/1.0f,
+		1/1.9f,
+		1/2.8f,
+		1/3.8f,
+		1/4.8f,
+		1/5.8f,
+		1/6.8f,
+		1/7.8f,
+		1/8.8f,
+		1/9.8f,
+		1/10.8f,
+		1/11.8f,
+		1/12.8f,
+		1/13.8f,
+		1/14.8f
+};
 
 
-//Oscillator oscillators[NUM_OSCILLATORS];
 Voice voices[MIDI_KEY_MAX];
 
 // PRIVATE FUNCTION PROTOTYPES
@@ -57,10 +74,6 @@ void synth_note_on(uint8_t note, uint8_t velocity)
 void synth_note_off(uint8_t note)
 {
 	voices[note].is_active = 0;
-//	for (int k = 0; k < synth_get_parameter(UNISON); k++)
-//	{
-//		voices[note].oscillator[0].phase[k] = 0.0f;
-//	}
 }
 
 void synth_set_parameter(uint8_t param_id, float val)

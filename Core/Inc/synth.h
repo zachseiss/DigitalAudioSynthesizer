@@ -50,7 +50,6 @@ void oscillator_set_frequency(Oscillator* osc, float frequency);
 
 float synth_get_parameter(uint8_t param_id);
 
-// the two functions below are not implemented.  not sure if that's the route I want to go?
 void synth_note_on(uint8_t note, uint8_t velocity);
 
 void synth_note_off(uint8_t note);

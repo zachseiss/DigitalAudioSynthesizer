@@ -89,19 +89,7 @@ static void process_midi_bytes(void)
     						break;
 
     				}
-
-//    			case PITCH_BEND:
-//    	            uint16_t pitch_value = (data_byte2 << 7) | data_byte1;
-//    	            int32_t centered = (int32_t)pitch_value - 8192;
-//    	            synth_set_parameter(PITCH_BEND, (float)centered / 8192.0f);
-
-//    			case CONTROL_CHANGE:
-//    	        	if (control_change_handlers[data_byte1])
-//    	        	{
-//    	        		control_change_handlers[data_byte1](data_byte2);
-//    	        	}
     		}
-
     }
 }
 
@@ -113,13 +101,6 @@ static void start_midi_reception(void)
 
 
 // PUBLIC API FUNCTION DEFINITIONS
-//void init_midi_handlers(void)
-//{
-//	control_change_handlers[CC_021] = handle_lfo_frequency;
-//	control_change_handlers[CC_022] = handle_lfo_depth;
-//	control_change_handlers[CC_023] = handle_attack;
-//	control_change_handlers[CC_024] = handle_decay;
-//}
 
 
 // HAL CALLBACKS
