@@ -20,39 +20,26 @@
 // PUBLIC API FUNCTION DEFINITIONS
 int16_t oscillator_process(Oscillator *osc)
 {
-	int32_t sample = 0;
-	int16_t final_sample = 0;
-	uint8_t num_unison = synth_get_parameter(UNISON);
-	for (size_t i = 0; i < num_unison; i++)
-	{
-		uint16_t idx_u16 = (uint16_t)osc->phase[i];
+	uint16_t idx_u16 = (uint16_t)osc->phase;
 
-		// linear interpolation
-		float frac = osc->phase[i] - idx_u16;
-		int16_t a = osc->wave_table[idx_u16];
-		int16_t b = osc->wave_table[idx_u16 + 1];
-		int16_t sample_i = (1.0f - frac) * a + frac * b;
-		sample = sample + sample_i;
+	// linear interpolation
+	float frac = osc->phase - idx_u16;
+	int16_t a = osc->wave_table[idx_u16];
+	int16_t b = osc->wave_table[idx_u16 + 1];
+	int16_t sample = (1.0f - frac) * a + frac * b;
 
-		osc->phase[i] += osc->phase_increment[i];
+	osc->phase += osc->phase_increment;
 
-		if (osc->phase[i] >= WAVETABLE_STD_SIZE) osc->phase[i] -= WAVETABLE_STD_SIZE;
-	}
-	final_sample = (int16_t)(sample / num_unison);
+	if (osc->phase >= WAVETABLE_STD_SIZE - 1) osc->phase -= WAVETABLE_STD_SIZE;
 
-	return final_sample;
+	return sample;
 }
 
 void oscillator_init_oscillator(Oscillator* osc, int16_t *wavetable)
 {
-	uint8_t num_unison_voices = (uint8_t)synth_get_parameter(UNISON);
-
-	for (size_t i = 0; i < num_unison_voices; i++)
-	{
-		osc->frequency[i] = 0.0f;
-		osc->phase[i] = 0.0f;
-		osc->phase_increment[i] = 0.0f;
-	}
+	osc->frequency = 0.0f;
+	osc->phase = 0.0f;
+	osc->phase_increment = 0.0f;
 	osc->wave_table = wavetable;
 }
 

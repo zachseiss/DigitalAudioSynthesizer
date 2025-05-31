@@ -23,14 +23,12 @@
 
 enum param_id
 {
-	UNISON,
 	DETUNE,
 	NUM_OSCILLATORS
 };
 
 typedef struct
 {
-	float unison;
 	float detune;
 	float num_oscillators;
 }SynthParams;
@@ -50,7 +48,7 @@ void oscillator_set_frequency(Oscillator* osc, float frequency);
 
 float synth_get_parameter(uint8_t param_id);
 
-void synth_note_on(uint8_t note, uint8_t velocity);
+void synth_note_on(uint8_t note, float velocity);
 
 void synth_note_off(uint8_t note);
 

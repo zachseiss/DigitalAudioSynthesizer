@@ -14,11 +14,9 @@
 SynthParams synth_params;
 
 // PRIVATE CONSTANTS
-#define NUM_OSCILLATORS 2
 
 float* const synth_param_ptrs[] =
 {
-		&synth_params.unison,
 		&synth_params.detune,
 		&synth_params.num_oscillators
 };
@@ -33,20 +31,20 @@ float voice_gain[] =
 {
 		0.0f,
 		1/1.0f,
-		1/1.9f,
+		1/2.0f,
+		1/3.0f,
+		1/4.0f,
+		1/5.0f,
+		1/6.0f,
 		1/2.8f,
-		1/3.8f,
-		1/4.8f,
-		1/5.8f,
-		1/6.8f,
-		1/7.8f,
-		1/8.8f,
-		1/9.8f,
-		1/10.8f,
-		1/11.8f,
-		1/12.8f,
-		1/13.8f,
-		1/14.8f
+		1/3.1f,
+		1/3.4f,
+		1/3.7f,
+		1/4.0f,
+		1/4.3f,
+		1/4.6f,
+		1/4.9f,
+		1/5.2f
 };
 
 
@@ -59,16 +57,16 @@ static void fill_audio_buffer(uint32_t*, Voice*, uint8_t);
 // PUBLIC API FUNCTION DEFINITIONS
 void synth_init_synth(void)
 {
-	synth_set_parameter(UNISON, 1.0f);
 	synth_set_parameter(DETUNE, 0.0f);
 	synth_set_parameter(NUM_OSCILLATORS, 1.0f);
 	wavetable_init_wavetables(wavetables);
 	voice_init_voices(voices, wavetables);
 }
 
-void synth_note_on(uint8_t note, uint8_t velocity)
+void synth_note_on(uint8_t note, float velocity)
 {
 	voices[note].is_active = 1;
+	voices[note].velocity = velocity;
 }
 
 void synth_note_off(uint8_t note)
@@ -93,8 +91,6 @@ float synth_get_parameter(uint8_t param_id)
 
 static void fill_audio_buffer(uint32_t *buf, Voice* voices, uint8_t is_half)
 {
-	static float ampltd = 0.5;
-
 	int16_t final_sample = 0;
 
 
@@ -110,13 +106,13 @@ static void fill_audio_buffer(uint32_t *buf, Voice* voices, uint8_t is_half)
 		{
 			if (voices[j].is_active)
 			{
-				sample += oscillator_process(voices[j].oscillator);
+				sample += oscillator_process(voices[j].oscillator) * (float)voices[j].velocity;
 				num_voices += 1;
 			}
 		}
 
 		if (num_voices > 0)
-			final_sample = (int16_t)(ampltd * sample * voice_gain[num_voices]);
+			final_sample = (int16_t)(sample * voice_gain[num_voices]);
 		else
 			final_sample = 0;
 

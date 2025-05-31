@@ -17,6 +17,7 @@
 typedef struct
 {
 	uint8_t is_active;
+	float velocity;
 	Oscillator oscillator[NUM_OSCILLATORS];
 }Voice;
 

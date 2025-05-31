@@ -80,7 +80,7 @@ static void process_midi_bytes(void)
 
     						if (data_byte2 != 0)
     						{
-    							synth_note_on(data_byte1, data_byte2);
+    							synth_note_on(data_byte1, data_byte2 / 127.0f);
     						}
     						else
     						{

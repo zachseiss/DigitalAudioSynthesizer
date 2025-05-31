@@ -14,9 +14,9 @@
 
 typedef struct
 {
-	float frequency[MAX_UNISON_VOICES];
-	float phase[MAX_UNISON_VOICES];
-	float phase_increment[MAX_UNISON_VOICES];
+	float frequency;
+	float phase;
+	float phase_increment;
 	int16_t *wave_table;
 }Oscillator;
 
