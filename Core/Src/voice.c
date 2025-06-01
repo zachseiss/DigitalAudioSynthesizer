@@ -2,7 +2,7 @@
  * voice.c
  *
  *  Created on: May 19, 2025
- *      Author: zach
+ *      Author: Zach S
  */
 
 
@@ -22,7 +22,7 @@ void voice_init_voices(Voice* voices, int16_t wavetables[][WAVETABLE_STD_SIZE])
 
 		for (int j = 0; j < num_oscillators; j++)
 		{
-			oscillator_init_oscillator(&(voices[i].oscillator[j]), wavetables[WAVEFORM_SINE]);
+			oscillator_init_oscillator(&(voices[i].oscillator[j]), wavetables[WAVEFORM_TRIANGLE]);
 
 			voices[i].oscillator[j].frequency = 440.0f * powf(2.0f, (i - 69.0f) / 12.0f);
 			voices[i].oscillator[j].phase_increment = WAVETABLE_STD_SIZE * voices[i].oscillator[j].frequency / SAMPLE_RATE;

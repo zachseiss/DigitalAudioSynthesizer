@@ -10,8 +10,12 @@
 #include "wavetable.h"
 #include "voice.h"
 
-// global synth parameters
+#include <string.h>  //debugging
+#include <stdio.h>   //debugging
+
+// Global Synthesizer Parameters
 SynthParams synth_params;
+extern UART_HandleTypeDef huart1;  //debugging
 
 // PRIVATE CONSTANTS
 
@@ -36,15 +40,15 @@ float voice_gain[] =
 		1/4.0f,
 		1/5.0f,
 		1/6.0f,
-		1/2.8f,
-		1/3.1f,
-		1/3.4f,
-		1/3.7f,
-		1/4.0f,
-		1/4.3f,
-		1/4.6f,
-		1/4.9f,
-		1/5.2f
+		1/7.0f,
+		1/8.0f,
+		1/9.0f,
+		1/10.0f,
+		1/11.0f,
+		1/12.0f,
+		1/13.0f,
+		1/14.0f,
+		1/15.0f
 };
 
 
@@ -52,6 +56,7 @@ Voice voices[MIDI_KEY_MAX];
 
 // PRIVATE FUNCTION PROTOTYPES
 static void fill_audio_buffer(uint32_t*, Voice*, uint8_t);
+void init_msg(void);
 
 
 // PUBLIC API FUNCTION DEFINITIONS
@@ -59,8 +64,8 @@ void synth_init_synth(void)
 {
 	synth_set_parameter(DETUNE, 0.0f);
 	synth_set_parameter(NUM_OSCILLATORS, 1.0f);
-	wavetable_init_wavetables(wavetables);
 	voice_init_voices(voices, wavetables);
+	wavetable_init_wavetables(wavetables);
 }
 
 void synth_note_on(uint8_t note, float velocity)
@@ -121,6 +126,7 @@ static void fill_audio_buffer(uint32_t *buf, Voice* voices, uint8_t is_half)
 		buf[(i + 1)] = final_sample;   // Right stereo sample
 	}
 }
+
 
 // HAL CALLBACKS
 void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef *hi2s)

@@ -9,9 +9,8 @@
 #include <stddef.h>
 #include "synth.h"
 
-#define PI 3.14159f
-#define INV_PI 1.0f / 3.14159f
-#define PHASE_INCREMENT 2.0f * PI / WAVETABLE_STD_SIZE
+#define INV_PI 1.0f / M_PI
+#define PHASE_INCREMENT (2.0f * M_PI) / (float)WAVETABLE_STD_SIZE
 
 
 // PRIVATE FUNCTION PROTOTYPES
@@ -77,18 +76,9 @@ static void wavetable_init_triangle_wavetable(int16_t wavetable[][WAVETABLE_STD_
 
 	for (size_t i = 0; i < length; i += 1)
 	{
-		float sample_f = phase <= PI ? INV_PI * phase : -INV_PI * phase + 2;
+		float sample_f = phase <= M_PI ? INV_PI * phase : -INV_PI * phase + 2;
 		int16_t sample_i16 = (int16_t)(sample_f * 32767.0f);
 		wavetable[WAVEFORM_TRIANGLE][i] = sample_i16;
 		phase += PHASE_INCREMENT;
 	}
 }
-
-//static void init_waveform_dispatcher(void)
-//{
-//	wave_table_initializers[WAVEFORM_SINE] = oscillator_init_sine_wavetable;
-//	wave_table_initializers[WAVEFORM_SQUARE] = oscillator_init_square_wavetable;
-//	wave_table_initializers[WAVEFORM_SAW] = oscillator_init_saw_wavetable;
-//	wave_table_initializers[WAVEFORM_TRIANGLE] = oscillator_init_triangle_wavetable;
-//}
-

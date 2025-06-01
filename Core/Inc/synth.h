@@ -18,7 +18,7 @@
 #define AUDIO_BUFFER_SIZE 32
 #define HALF_BUFFER 16
 #define FREQUENCY_CORRECTION 1.01
-#define SAMPLE_RATE 48000.0f
+#define SAMPLE_RATE 43402.0f
 #define TWO_PI 6.283185f
 
 enum param_id

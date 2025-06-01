@@ -13,7 +13,7 @@
 
 #define NUM_WAVETABLES 4
 #define WAVETABLE_REDUCED_SIZE 128
-#define WAVETABLE_STD_SIZE 1024
+#define WAVETABLE_STD_SIZE 256
 
 typedef enum
 {
