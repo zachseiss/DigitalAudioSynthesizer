@@ -24,13 +24,11 @@
 enum param_id
 {
 	DETUNE,
-	NUM_OSCILLATORS
 };
 
 typedef struct
 {
 	float detune;
-	float num_oscillators;
 }SynthParams;
 
 // Globals

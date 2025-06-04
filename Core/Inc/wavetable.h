@@ -23,9 +23,8 @@ typedef enum
 	WAVEFORM_TRIANGLE
 }WaveformType;
 
-
 // PUBLIC API FUNCTION DECLARATIONS
-void wavetable_init_wavetables(int16_t[][WAVETABLE_STD_SIZE]);
+void wavetable_init_wavetables(void);
 
 
 

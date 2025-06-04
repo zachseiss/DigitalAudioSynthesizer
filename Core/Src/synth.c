@@ -9,20 +9,28 @@
 #include "synth.h"
 #include "wavetable.h"
 #include "voice.h"
+#include "oscillator_configuration.h"
 
-#include <string.h>  //debugging
-#include <stdio.h>   //debugging
+#include <string.h>
+#include <stdio.h>
 
-// Global Synthesizer Parameters
+// Global Variables
 SynthParams synth_params;
-extern UART_HandleTypeDef huart1;  //debugging
+OscillatorConfiguration oscillator_configuration;
+int16_t* p_wavetables[NUM_WAVETABLES];
+int16_t sine_wavetable[WAVETABLE_STD_SIZE];
+int16_t square_wavetable[WAVETABLE_STD_SIZE];
+int16_t saw_wavetable[WAVETABLE_STD_SIZE];
+int16_t triangle_wavetable[WAVETABLE_STD_SIZE];
+
+// Externals
+extern UART_HandleTypeDef huart1;
 
 // PRIVATE CONSTANTS
 
 float* const synth_param_ptrs[] =
 {
 		&synth_params.detune,
-		&synth_params.num_oscillators
 };
 
 
@@ -30,7 +38,8 @@ float* const synth_param_ptrs[] =
 
 
 // PRIVATE VARIABLES
-int16_t wavetables[NUM_WAVETABLES][WAVETABLE_STD_SIZE];
+static char msg[50];
+
 float voice_gain[] =
 {
 		0.0f,
@@ -56,16 +65,46 @@ Voice voices[MIDI_KEY_MAX];
 
 // PRIVATE FUNCTION PROTOTYPES
 static void fill_audio_buffer(uint32_t*, Voice*, uint8_t);
-void init_msg(void);
+static void init_msg(void);
 
 
 // PUBLIC API FUNCTION DEFINITIONS
 void synth_init_synth(void)
 {
 	synth_set_parameter(DETUNE, 0.0f);
-	synth_set_parameter(NUM_OSCILLATORS, 1.0f);
-	voice_init_voices(voices, wavetables);
-	wavetable_init_wavetables(wavetables);
+
+	wavetable_init_wavetables();     // initializing before voices caused a memory overwrite error that I still haven't figured out yet
+
+	init_oscillator_configuration();  // must be initialized before voices in current version
+
+	osc_conf_to_string(&oscillator_configuration);
+
+	voice_init_voices(voices);
+
+	for (int i = MIDI_KEY_MIN; i < MIDI_KEY_MAX; i++)
+	{
+		sprintf(msg, "VOICE NUMBER %d\r\n\n", i);
+		HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+		init_msg();
+
+		for (int j = 0; j < NUM_OSCILLATORS; j++)
+		{
+			sprintf(msg, "\tosc: %d", j);
+			HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+			oscillator_to_string(&voices[i].oscillator[j]);
+			init_msg();
+		}
+	}
+	sprintf(msg, "\r\n");
+	HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+	init_msg();
+
+	for (int i = 0; i < WAVETABLE_STD_SIZE; i++)
+	{
+		sprintf(msg, "sine_wavetable[%d]:     %d\n\r", i, voices[60].oscillator[0].p_wavetable[i]);
+		HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+		init_msg();
+	}
 }
 
 void synth_note_on(uint8_t note, float velocity)
@@ -96,6 +135,7 @@ float synth_get_parameter(uint8_t param_id)
 
 static void fill_audio_buffer(uint32_t *buf, Voice* voices, uint8_t is_half)
 {
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_SET);
 	int16_t final_sample = 0;
 
 
@@ -111,7 +151,14 @@ static void fill_audio_buffer(uint32_t *buf, Voice* voices, uint8_t is_half)
 		{
 			if (voices[j].is_active)
 			{
-				sample += oscillator_process(voices[j].oscillator) * (float)voices[j].velocity;
+				uint8_t active_osc = 0;
+				int32_t inner_sample = 0;
+				for (size_t k = 0; k < NUM_OSCILLATORS; k++)
+				{
+					active_osc += oscillator_configuration.is_active[k];
+					inner_sample += oscillator_process(&voices[j].oscillator[k]) * (float)voices[j].velocity;
+				}
+				sample += (int32_t)(inner_sample / (float)active_osc);
 				num_voices += 1;
 			}
 		}
@@ -125,8 +172,13 @@ static void fill_audio_buffer(uint32_t *buf, Voice* voices, uint8_t is_half)
 		buf[i] = final_sample;         // Left stereo sample
 		buf[(i + 1)] = final_sample;   // Right stereo sample
 	}
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_RESET);
 }
 
+static void init_msg(void)
+{
+	memset(msg, '\0', sizeof(msg));
+}
 
 // HAL CALLBACKS
 void HAL_I2S_TxCpltCallback(I2S_HandleTypeDef *hi2s)

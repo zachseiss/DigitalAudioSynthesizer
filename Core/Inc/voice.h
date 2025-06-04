@@ -9,6 +9,8 @@
 #define INC_VOICE_H_
 
 #include "synth.h"
+#include "oscillator_configuration.h"
+
 
 #define MIDI_KEY_MIN 21
 #define MIDI_KEY_MAX 127
@@ -23,7 +25,7 @@ typedef struct
 
 
 // PUBLIC API FUNCTION DECLARATIONS
-void voice_init_voices(Voice*, int16_t[][WAVETABLE_STD_SIZE]);
+void voice_init_voices(Voice*);
 
 
 #endif /* INC_VOICE_H_ */

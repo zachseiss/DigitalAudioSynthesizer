@@ -7,25 +7,32 @@
 
 
 #include "voice.h"
+#include "wavetable.h"
 
-extern Voice voices;
+extern OscillatorConfiguration oscillator_configuration;
+extern int16_t* p_wavetables;
 
 // PUBLIC API
-void voice_init_voices(Voice* voices, int16_t wavetables[][WAVETABLE_STD_SIZE])
+void voice_init_voices(Voice* voices)
 {
-	uint8_t num_oscillators = (uint8_t)synth_get_parameter(NUM_OSCILLATORS);
-
 	for (int i = MIDI_KEY_MIN; i < MIDI_KEY_MAX + 1; i++)
 	{
 		voices[i].is_active = 0;
 		voices[i].velocity = 0;
 
-		for (int j = 0; j < num_oscillators; j++)
+		for (int j = 0; j < NUM_OSCILLATORS; j++)
 		{
-			oscillator_init_oscillator(&(voices[i].oscillator[j]), wavetables[WAVEFORM_TRIANGLE]);
+			Oscillator *p_osc = &(voices[i].oscillator[j]);
 
-			voices[i].oscillator[j].frequency = 440.0f * powf(2.0f, (i - 69.0f) / 12.0f);
-			voices[i].oscillator[j].phase_increment = WAVETABLE_STD_SIZE * voices[i].oscillator[j].frequency / SAMPLE_RATE;
+			if (oscillator_configuration.is_active[j])
+			{
+				oscillator_init_oscillator(p_osc);
+				p_osc->is_active = 1;
+				uint8_t detune = oscillator_configuration.detune[j];
+				p_osc->frequency = 440.0f * powf(2.0f, (i - detune - 69.0f) / 12.0f);
+				p_osc->phase_increment = WAVETABLE_STD_SIZE * voices[i].oscillator[j].frequency / SAMPLE_RATE;
+				p_osc->p_wavetable = oscillator_configuration.p_wavetable[j];
+			}
 		}
 	}
 }
