@@ -13,12 +13,13 @@
 
 
 #define MIDI_KEY_MIN 21
-#define MIDI_KEY_MAX 127
+#define MIDI_KEY_MAX 128
+#define POLYPHONY_MAX 9
 
 // TYPEDEFS
 typedef struct
 {
-	uint8_t is_active;
+//	uint8_t is_active;
 	float velocity;
 	Oscillator oscillator[NUM_OSCILLATORS];
 }Voice;

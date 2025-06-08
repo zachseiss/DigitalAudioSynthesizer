@@ -26,7 +26,7 @@ void init_oscillator_configuration(void)
 {
 	for (uint8_t i = 0; i < NUM_OSCILLATORS; i++)
 	{
-		if (i < 2)
+		if (i < 1)
 		{
 			oscillator_configuration.is_active[i] = 1;
 		}
@@ -35,7 +35,7 @@ void init_oscillator_configuration(void)
 			oscillator_configuration.is_active[i] = 0;
 		}
 
-		oscillator_configuration.p_wavetable[i] = p_wavetables[WAVEFORM_SAW];
+		oscillator_configuration.p_wavetable[i] = p_wavetables[WAVEFORM_SINE];
 
 		if (i == 1)
 		{

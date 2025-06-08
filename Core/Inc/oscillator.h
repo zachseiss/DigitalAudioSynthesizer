@@ -16,8 +16,8 @@ typedef struct
 {
 	uint8_t is_active;
 	float frequency;
-	float phase;
-	float phase_increment;
+	uint32_t phase;
+	uint32_t phase_increment;
 	uint8_t detune;  // number of semi-tones de-tuned from frequency e.g. -12 is one octave down from frequency
 	int16_t *p_wavetable;
 }Oscillator;

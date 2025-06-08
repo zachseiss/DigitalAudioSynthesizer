@@ -15,6 +15,10 @@
 #include <string.h>
 #include <stdio.h>
 
+#define _2_POW_15 32768
+#define FRAC_MAX ((uint32_t)(pow(2, SHIFT)))
+#define MAX_PHASE ((WAVETABLE_STD_SIZE - 1) << SHIFT)
+
 // Externals
 extern int16_t* p_wavetables[];
 extern UART_HandleTypeDef huart1;
@@ -26,17 +30,16 @@ uint8_t num_osc_initialized = 0;  // how many oscillators have been initialized 
 // PUBLIC API FUNCTION DEFINITIONS
 int16_t oscillator_process(Oscillator *osc)
 {
-	uint16_t idx_u16 = (uint16_t)osc->phase;
-
 	// linear interpolation
-	float frac = osc->phase - idx_u16;
+	uint16_t idx_u16 = (uint16_t)(osc->phase >> SHIFT);
+	uint16_t frac = (uint16_t)(osc->phase & FIXED_POINT_MASK);
 	int16_t a = osc->p_wavetable[idx_u16];
 	int16_t b = osc->p_wavetable[idx_u16 + 1];
-	int16_t sample = (1.0f - frac) * a + frac * b;
+	int16_t sample = ((FRAC_MAX - frac) * a + frac * b) >> SHIFT;
 
 	osc->phase += osc->phase_increment;
 
-	if (osc->phase >= WAVETABLE_STD_SIZE - 1) osc->phase -= WAVETABLE_STD_SIZE;
+	if (osc->phase >= MAX_PHASE) osc->phase -= MAX_PHASE;
 
 	return sample;
 }
@@ -44,9 +47,9 @@ int16_t oscillator_process(Oscillator *osc)
 void oscillator_init_oscillator(Oscillator* osc)
 {
 	osc->frequency = 0.0f;
-	osc->phase = 0.0f;
-	osc->phase_increment = 0.0f;
-	osc->detune = 0.0f;
+	osc->phase = 0;
+	osc->phase_increment = 0;
+	osc->detune = 0;
 	osc->p_wavetable = p_wavetables[num_osc_initialized];
 	++num_osc_initialized;
 }

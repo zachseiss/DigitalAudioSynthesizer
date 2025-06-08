@@ -60,18 +60,26 @@ float voice_gain[] =
 		1/15.0f
 };
 
+uint8_t num_active_voices;
 
 Voice voices[MIDI_KEY_MAX];
+uint8_t active_voice_index[POLYPHONY_MAX];
+
 
 // PRIVATE FUNCTION PROTOTYPES
 static void fill_audio_buffer(uint32_t*, Voice*, uint8_t);
 static void init_msg(void);
+static void init_int8_array(int8_t[], size_t, int8_t);
+static void init_uint8_array(uint8_t[], size_t, uint8_t);
+
 
 
 // PUBLIC API FUNCTION DEFINITIONS
 void synth_init_synth(void)
 {
 	synth_set_parameter(DETUNE, 0.0f);
+
+	init_uint8_array(active_voice_index, POLYPHONY_MAX, 0);
 
 	wavetable_init_wavetables();     // initializing before voices caused a memory overwrite error that I still haven't figured out yet
 
@@ -109,13 +117,20 @@ void synth_init_synth(void)
 
 void synth_note_on(uint8_t note, float velocity)
 {
-	voices[note].is_active = 1;
-	voices[note].velocity = velocity;
+	if (num_active_voices < POLYPHONY_MAX)
+	{
+		voices[note].velocity = velocity;
+		active_voice_index[num_active_voices++] = note;
+	}
 }
 
 void synth_note_off(uint8_t note)
 {
-	voices[note].is_active = 0;
+	for (size_t i = 0; i < num_active_voices; i++)
+	{
+		if (active_voice_index[i] == note)
+			active_voice_index[i] = active_voice_index[--num_active_voices];
+	}
 }
 
 void synth_set_parameter(uint8_t param_id, float val)
@@ -144,27 +159,23 @@ static void fill_audio_buffer(uint32_t *buf, Voice* voices, uint8_t is_half)
 
 	for (size_t i = start; i < end; i += 2)
 	{
-		uint8_t num_voices = 0;
 		int32_t sample = 0;
 
-		for (size_t j = MIDI_KEY_MIN; j < MIDI_KEY_MAX; j++)  // iterate through all voices
+		for (size_t j = 0; j < num_active_voices; j++)  // iterate through all voices
 		{
-			if (voices[j].is_active)
+			uint8_t active_osc = 0;
+			uint8_t voice_idx = active_voice_index[j];
+			int32_t inner_sample = 0;
+			for (size_t k = 0; k < NUM_OSCILLATORS; k++)
 			{
-				uint8_t active_osc = 0;
-				int32_t inner_sample = 0;
-				for (size_t k = 0; k < NUM_OSCILLATORS; k++)
-				{
-					active_osc += oscillator_configuration.is_active[k];
-					inner_sample += oscillator_process(&voices[j].oscillator[k]) * (float)voices[j].velocity;
-				}
-				sample += (int32_t)(inner_sample / (float)active_osc);
-				num_voices += 1;
+				active_osc += oscillator_configuration.is_active[k];
+				inner_sample += oscillator_process(&voices[voice_idx].oscillator[k]) * (float)voices[voice_idx].velocity;
 			}
+			sample += (int32_t)(inner_sample * voice_gain[active_osc]);
 		}
 
-		if (num_voices > 0)
-			final_sample = (int16_t)(sample * voice_gain[num_voices]);
+		if (num_active_voices > 0)
+			final_sample = (int16_t)(sample / (float)num_active_voices);
 		else
 			final_sample = 0;
 
@@ -173,6 +184,22 @@ static void fill_audio_buffer(uint32_t *buf, Voice* voices, uint8_t is_half)
 		buf[(i + 1)] = final_sample;   // Right stereo sample
 	}
 	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_RESET);
+}
+
+static void init_int8_array(int8_t array[], size_t length, int8_t fill_value)
+{
+	for (size_t i = 0; i < length; i++)
+	{
+		array[i] = fill_value;
+	}
+}
+
+static void init_uint8_array(uint8_t array[], size_t length, uint8_t fill_value)
+{
+	for (size_t i = 0; i < length; i++)
+	{
+		array[i] = fill_value;
+	}
 }
 
 static void init_msg(void)

@@ -15,8 +15,8 @@
 #ifndef INC_SYNTH_H_
 #define INC_SYNTH_H_
 
-#define AUDIO_BUFFER_SIZE 32
-#define HALF_BUFFER 16
+#define AUDIO_BUFFER_SIZE 16
+#define HALF_BUFFER 8
 #define FREQUENCY_CORRECTION 1.01
 #define SAMPLE_RATE 43402.0f
 #define TWO_PI 6.283185f
